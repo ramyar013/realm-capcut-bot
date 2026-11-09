@@ -1,4 +1,4 @@
-import { kvGet, kvSet, kvDel, tg, send, buyKb, PRICE, TRIAL_MIN } from './_lib.js';
+import { kvGet, kvSet, kvDel, tg, send, buyKb, PRICE, TRIAL_MIN, HOOK } from './_lib.js';
 const MENU = { inline_keyboard: [
   [{ text: '🎁 تاقیکردنەوەی ٥ خولەکی (کۆد)', callback_data: 'trial' }],
   [{ text: '📘 دەربارەی کتێبەکە', callback_data: 'book' }],
@@ -56,7 +56,7 @@ async function onMember(m) {
 }
 
 export default async function handler(req, res) {
-  if (req.method !== 'POST' || req.headers['x-telegram-bot-api-secret-token'] !== process.env.WEBHOOK_SECRET) return res.status(200).send('ok');
+  if (req.method !== 'POST' || req.headers['x-telegram-bot-api-secret-token'] !== HOOK()) return res.status(200).send('ok');
   const u = req.body;
   try {
     if (u.message && u.message.chat.type === 'private') await onMessage(u.message);
