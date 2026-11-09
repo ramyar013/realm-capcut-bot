@@ -1,22 +1,29 @@
 import { kvGet, kvSet, kvDel, tg, send, buyKb, PRICE, TRIAL_MIN, HOOK } from './_lib.js';
 const MENU = { inline_keyboard: [
-  [{ text: '🎁 تاقیکردنەوەی ٥ خولەکی (کۆد)', callback_data: 'trial' }],
+  [{ text: '🎁 سەیرکردنی خۆڕایی (٥ خولەک)', callback_data: 'trial' }],
   [{ text: '📘 دەربارەی کتێبەکە', callback_data: 'book' }],
   [{ text: '💳 کڕینی کۆرس', callback_data: 'buy' }]] };
 const welcome = () => `🎓 <b>بەخێربێیت بۆ کۆرسی کاپکەت پڕۆ | Realm Academy</b>\n\n📚 ٣٠ وانەی ڕێکخراو + وانەی لاوەکی\n🤖 ئامرازەکانی زیرەکی دەستکرد\n📘 کتێبی ٥٧ لاپەڕەیی بە دیاری\n\n💰 نرخ: <b>${PRICE()}</b>\n\nلە خوارەوە هەڵبژێرە 👇`;
 function newCode() { const c = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let s = 'RA-'; for (const x of crypto.getRandomValues(new Uint8Array(6))) s += c[x % c.length]; return s; }
 
-async function useCode(uid, chatId, code) {
-  const kind = await kvGet(`code:${code}`);            // 'normal' | 'vip'
-  if (!kind) return send(chatId, '❌ ئەم کۆدە هەڵەیە یان پێشتر بەکارهاتووە.');
-  if (kind !== 'vip' && await kvGet(`used:${uid}`))     // user ID never changes, even if username changes
-    return send(chatId, '⚠️ تۆ پێشتر تاقیکردنەوەکەت بەکارهێناوە.\n\nبۆ بەشداریکردن پەیوەندیمان پێوە بکە 👇', { reply_markup: buyKb() });
-  await kvDel(`code:${code}`);
+async function giveLink(uid, chatId) {
   const link = await tg('createChatInviteLink', { chat_id: process.env.TRIAL_CHAT_ID, member_limit: 1, expire_date: Math.floor(Date.now() / 1000) + 600, name: `trial ${uid}` });
   if (!link.ok) return send(chatId, 'هەڵەیەک ڕوویدا، تکایە دووبارە هەوڵبدەرەوە.');
   await kvSet(`used:${uid}`, '1');
-  return send(chatId, `✅ <b>کۆدەکە دروستە!</b>\n\nکلیک لە دوگمەی خوارەوە بکە.\n⏱ تەنها <b>${TRIAL_MIN} خولەک</b> کاتت هەیە.\n🔗 لینکەکە تەنها یەک جار کار دەکات.`,
+  return send(chatId, `✅ <b>ئامادەیە!</b>\n\nکلیک لە دوگمەی خوارەوە بکە.\n⏱ تەنها <b>${TRIAL_MIN} خولەک</b> کاتت هەیە بۆ سەیرکردن.\n🔗 لینکەکە تەنها یەک جار کار دەکات.`,
     { reply_markup: { inline_keyboard: [[{ text: '🎬 چوونە ناو کۆرسەکە', url: link.result.invite_link }]] } });
+}
+
+async function freeTrial(uid, chatId) {           // first trial: no code needed, once per Telegram ID
+  if (await kvGet(`used:${uid}`))
+    return send(chatId, '⚠️ تۆ پێشتر تاقیکردنەوەی خۆڕاییت بەکارهێناوە.\n\nبۆ کڕینی کۆرسەکە پەیوەندیمان پێوە بکە 👇', { reply_markup: buyKb() });
+  return giveLink(uid, chatId);
+}
+
+async function useCode(uid, chatId, code) {       // admin codes = extra trial for someone who already used it
+  if (!await kvGet(`code:${code}`)) return send(chatId, '❌ ئەم کۆدە هەڵەیە یان پێشتر بەکارهاتووە.');
+  await kvDel(`code:${code}`);
+  return giveLink(uid, chatId);
 }
 
 async function onMessage(msg) {
@@ -26,7 +33,7 @@ async function onMessage(msg) {
     if (cmd === '/newcode' || cmd === '/vipcode') {
       const n = Math.min(20, Number(arg || 1)), kind = cmd === '/vipcode' ? 'vip' : 'normal', out = [];
       for (let i = 0; i < n; i++) { const c = newCode(); await kvSet(`code:${c}`, kind); out.push(`<code>${c}</code>`); }
-      return send(chatId, `${kind === 'vip' ? '⭐ کۆدی تایبەت (بۆ کەسێک کە پێشتر تاقی کردووەتەوە)' : '🎁 کۆدی ٥ خولەکی'}:\n\n${out.join('\n')}`);
+      return send(chatId, `${kind === 'vip' ? '⭐ کۆدی تایبەت' : '🎁 کۆد بۆ جارێکی تر سەیرکردن (٥ خولەک)'}:\n\n${out.join('\n')}`);
     }
     if (cmd === '/reset' && arg) { await kvDel(`used:${arg}`); return send(chatId, '✅ ئەم کەسە دەتوانێت دووبارە تاقی بکاتەوە.'); }
     if (cmd === '/help') return send(chatId, '/newcode 3 — ٣ کۆدی ئاسایی\n/vipcode 1 — کۆد بۆ کەسێک کە پێشتر تاقی کردووەتەوە\n/reset ID — ڕێگەدان بە کەسێک بۆ جارێکی تر');
@@ -40,7 +47,7 @@ async function onMessage(msg) {
 async function onCallback(cq) {
   await tg('answerCallbackQuery', { callback_query_id: cq.id });
   const chatId = cq.message.chat.id;
-  if (cq.data === 'trial') return send(chatId, '🎁 کۆدەکەت لێرە بنووسە، نموونە: <code>RA-AB12CD</code>\n\nکۆدت نییە؟ داوای لە ئێمە بکە 👇', { reply_markup: buyKb() });
+  if (cq.data === 'trial') return freeTrial(cq.from.id, chatId);
   if (cq.data === 'book') return send(chatId, `📘 <b>باشترین فکرەکان بۆ بەهێزکردنی بزنسەکەت</b>\n\n✨ ٥٧ لاپەڕە، پلانی کاری ٣٠ ڕۆژی، کاریگەری ڕەنگەکان، زیرەکی دەستکرد...\n🎁 بە دیاری لەگەڵ کۆرسەکە وەریدەگریت.`, { reply_markup: buyKb() });
   if (cq.data === 'buy') return send(chatId, `💳 <b>کۆرسی کاپکەت پڕۆ</b>\n\n✅ ٣٠ وانە + وانەی لاوەکی\n✅ کتێبی دیاری\n✅ دەستگەیشتنی هەمیشەیی\n\n💰 <b>${PRICE()}</b>`, { reply_markup: buyKb() });
 }
