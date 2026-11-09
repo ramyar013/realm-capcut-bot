@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 // Shared helpers — storage in Supabase table `ra_kv` (key text primary key, val text)
 const SB = process.env.SUPABASE_URL, SK = process.env.SUPABASE_SERVICE_KEY;
 const H = { apikey: SK, Authorization: `Bearer ${SK}`, 'Content-Type': 'application/json' };
@@ -21,3 +22,6 @@ export async function tg(method, body) {
 export const PRICE = () => process.env.PRICE || '٢٥,٠٠٠ دینار';
 export const send = (chat_id, text, extra = {}) => tg('sendMessage', { chat_id, text, parse_mode: 'HTML', protect_content: true, ...extra });
 export const buyKb = () => ({ inline_keyboard: [[{ text: '💬 پەیوەندی بۆ کڕین', url: `https://t.me/${(process.env.CONTACT || '').replace('@', '')}` }]] });
+
+// Webhook secret: env WEBHOOK_SECRET, or derived automatically from BOT_TOKEN
+export const HOOK = () => process.env.WEBHOOK_SECRET || createHash('sha256').update('realm:' + (process.env.BOT_TOKEN || '')).digest('hex').slice(0, 48);
