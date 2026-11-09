@@ -1,7 +1,7 @@
 import { kvList, kvDel, tg, send, buyKb, PRICE } from './_lib.js';
 // Called every minute by Supabase pg_cron (pg_net) with ?key=CRON_SECRET
 export default async function handler(req, res) {
-  if (req.query.key !== process.env.CRON_SECRET) return res.status(403).send('no');
+  if (process.env.CRON_SECRET && req.query.key !== process.env.CRON_SECRET) return res.status(403).send('no');
   const now = Date.now(); let n = 0;
   for (const { key, val } of await kvList('in:')) {
     if (now < Number(val)) continue;
@@ -13,3 +13,4 @@ export default async function handler(req, res) {
   }
   res.status(200).json({ kicked: n });
 }
+
