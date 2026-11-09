@@ -31,6 +31,7 @@ async function onMessage(msg) {
     if (cmd === '/reset' && arg) { await kvDel(`used:${arg}`); return send(chatId, '✅ ئەم کەسە دەتوانێت دووبارە تاقی بکاتەوە.'); }
     if (cmd === '/help') return send(chatId, '/newcode 3 — ٣ کۆدی ئاسایی\n/vipcode 1 — کۆد بۆ کەسێک کە پێشتر تاقی کردووەتەوە\n/reset ID — ڕێگەدان بە کەسێک بۆ جارێکی تر');
   }
+  if (t === '/id') { const lc = await kvGet('lastchat'); return send(chatId, `🆔 <code>${uid}</code>${lc ? `\n📢 ${lc}` : ''}`); }
   const m = t.toUpperCase().match(/RA-[A-Z0-9]{6}/);
   if (m) return useCode(uid, chatId, m[0]);
   return send(chatId, welcome(), { reply_markup: MENU });
@@ -61,6 +62,7 @@ export default async function handler(req, res) {
     if (u.message && u.message.chat.type === 'private') await onMessage(u.message);
     else if (u.callback_query) await onCallback(u.callback_query);
     else if (u.chat_member) await onMember(u.chat_member);
+    else if (u.my_chat_member) await kvSet('lastchat', `<code>${u.my_chat_member.chat.id}</code> ${u.my_chat_member.chat.title || ''}`);
   } catch (e) { console.log(e); }
   res.status(200).send('ok');
 }
